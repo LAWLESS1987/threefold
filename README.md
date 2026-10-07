@@ -111,3 +111,12 @@ Every Grok Bot user-visible reply is a triad task. Run:
 ```
 
 This calls `fire_triad.sh` (all three legs required).
+
+## Public memory root
+
+Live data: https://github.com/LAWLESS1987/threefold-memory
+
+```bash
+git clone https://github.com/LAWLESS1987/threefold-memory
+export AI_MEMORY_ROOT=$PWD/threefold-memory
+```
