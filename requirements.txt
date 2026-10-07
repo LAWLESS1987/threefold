@@ -1,0 +1,12 @@
+# CPU-only triad demo stack (gpt2-small + pretrained Jacobian lens).
+# Prefer a Python 3.12 venv. Install torch CPU first, then the rest.
+#
+#   pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1
+#   pip install -r requirements.txt
+#   pip install "jlens @ git+https://github.com/anthropics/jacobian-lens"
+#
+torch==2.14.1
+transformers==5.19.0
+huggingface_hub>=0.20.0
+# jlens: install from git (not on PyPI as a stable pin here)
+#   pip install "jlens @ git+https://github.com/anthropics/jacobian-lens"

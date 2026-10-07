@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Local data (private AI memory; never commit)
+data/ai_memory_root/
+data/
+
+# Large / generated artifacts
+*.pt
+runs/
+triad/runs/
+*.log
+
+# Vendor clone (optional local checkout of LAWLESS1987/covenant)
+vendor/covenant/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
