@@ -101,3 +101,13 @@ triad/
 - Jacobian lens library: [anthropics/jacobian-lens](https://github.com/anthropics/jacobian-lens)
 - Pretrained lens weights: [neuronpedia/jacobian-lens](https://huggingface.co/neuronpedia/jacobian-lens)
 - Covenant memory CLI: [LAWLESS1987/covenant](https://github.com/LAWLESS1987/covenant)
+
+## Speak-turn hook
+
+Every Grok Bot user-visible reply is a triad task. Run:
+
+```bash
+./triad/on_speak.sh "exact words spoken" "short-title"
+```
+
+This calls `fire_triad.sh` (all three legs required).
