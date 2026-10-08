@@ -226,6 +226,8 @@ threefold/
 
 ## License / upstream
 
+- **threefold** itself is licensed under the [Apache License 2.0](LICENSE) (Lawrence's choice, 2026-10-08). That is
+  the same license as covenant and as the jlens dependency.
 - **Jacobian Lens** (the instrument): [anthropics/jacobian-lens](https://github.com/anthropics/jacobian-lens),
   © Anthropic PBC, Apache-2.0. It is installed as a dependency, not copied into this repository. Paper:
   [Verbalizable Representations Form a Global Workspace in Language Models](https://transformer-circuits.pub/2026/workspace/index.html).
