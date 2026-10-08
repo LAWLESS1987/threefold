@@ -4,7 +4,10 @@ Public sample only. Real deployments append locally; do not commit private entri
 
 Format: each entry is a markdown subsection with `id`, `task`, `done`, `outcome`,
 `mistakes`, `lessons`, and `notes`. Triad runs stamp `task_id=...` and
-`jlens_digest=...` into notes so the three legs share one id.
+`jlens_digest=...` into notes so the three legs share one id. Since 2026-10-08 they
+also stamp `jlens_capture_sha256=...` and `llens_sha256=...`, which
+`triad/verify_triad.py` checks against the lens leg and covenant. The entry below
+predates that and is kept as written.
 
 ### 2026-10-07T02:09:13Z | jlens-triad-e2e
 - id: 20261007-020913

@@ -8,6 +8,7 @@
 # Usage:
 #   ./scripts/fetch_lens.sh
 #   OUT=/path/to/gpt2_jacobian_lens.pt ./scripts/fetch_lens.sh
+#   PYTHON=/path/to/venv/python ./scripts/fetch_lens.sh   (default python3)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -28,8 +29,8 @@ if command -v huggingface-cli >/dev/null 2>&1; then
   huggingface-cli download "$REPO_ID" "$HF_PATH" --local-dir "$TMPDIR" --local-dir-use-symlinks False
   mv "$TMPDIR/$HF_PATH" "$OUT"
   rm -rf "$TMPDIR"
-elif python3 -c "import huggingface_hub" 2>/dev/null; then
-  python3 - <<PY
+elif "${PYTHON:-python3}" -c "import huggingface_hub" 2>/dev/null; then
+  "${PYTHON:-python3}" - <<PY
 from huggingface_hub import hf_hub_download
 import shutil, os
 path = hf_hub_download(repo_id="${REPO_ID}", filename="${HF_PATH}")

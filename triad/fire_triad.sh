@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# fire_triad.sh — mandatory three-leg triad (tombstone + covenant + real JLens)
+# fire_triad.sh — mandatory three-leg triad (tombstone + covenant + lens leg:
+#                 L-lens over real Anthropic Jacobian Lens measurements)
 #
 # Usage:
 #   ./fire_triad.sh TITLE TASK DONE OUTCOME PROMPT [MISTAKES] [LESSONS] [NOTES]
 # Or env: TITLE TASK DONE OUTCOME PROMPT MISTAKES LESSONS NOTES TASK_ID
 #
 # Legs (all required; any failure => exit nonzero):
-#   (a) tombstone append with JLens digest in notes
-#   (b) covenant puts (task-{id} + jlens-{id} type:jlens snapshot)
-#   (c) real Anthropic jlens.JacobianLens.apply snapshot
+#   (a) tombstone append; notes carry task_id, jlens_capture_sha256, llens_sha256
+#   (b) covenant puts: task-{id} (both digests), jlens-{id} (the JLens capture),
+#       llens-{id} (the L-lens artifact)
+#   (c) lens leg: jlens_snapshot.py runs upstream jlens.JacobianLens.apply
+#       (anthropics/jacobian-lens) and stores what it returned; llens.py
+#       builds the L-lens artifact from that capture and checks it
+# After all three: triad/verify_triad.py checks the legs agree (task_id and
+# digests); a disagreement or an absent artifact fails the triad.
 #
 # Defaults resolve relative to REPO_ROOT (parent of triad/).
 set -euo pipefail
@@ -21,6 +27,9 @@ JLENS_VENV="${JLENS_VENV:-${REPO_ROOT}/.venv}"
 # Prefer repo-local scripts; allow override for shared venvs.
 JLENS_SNAPSHOT_PY="${JLENS_SNAPSHOT_PY:-$REPO_ROOT/jlens_snapshot.py}"
 JLENS_LENS="${JLENS_LENS:-$REPO_ROOT/gpt2_jacobian_lens.pt}"
+LLENS_PY="${LLENS_PY:-$REPO_ROOT/llens.py}"
+VERIFY_PY="${VERIFY_PY:-$DIR/verify_triad.py}"
+export TOMBSTONE_LOG="${TOMBSTONE_LOG:-$REPO_ROOT/tombstone/tombstone.md}"
 RUN_DIR="${RUN_DIR:-$REPO_ROOT/runs}"
 export AI_MEMORY_ROOT="${AI_MEMORY_ROOT:-$REPO_ROOT/data/ai_memory_root}"
 export COVENANT_SRC="${COVENANT_SRC:-$REPO_ROOT/vendor/covenant}"
@@ -44,6 +53,8 @@ SNAP_DIR="$RUN_DIR/$TASK_ID"
 mkdir -p "$SNAP_DIR"
 SNAP_JSON="$SNAP_DIR/jlens_snapshot.json"
 SNAP_DIGEST="$SNAP_DIR/jlens_digest.txt"
+SNAP_RAW="$SNAP_DIR/jlens_raw.npz"
+LLENS_JSON="$SNAP_DIR/llens.json"
 
 echo "=== fire_triad task_id=$TASK_ID ==="
 echo "prompt=$PROMPT"
@@ -52,6 +63,8 @@ echo "REPO_ROOT=$REPO_ROOT"
 # Resolve python: JLENS_VENV, else python3 on PATH
 if [[ -x "$JLENS_VENV/bin/python" ]]; then
   PYTHON="$JLENS_VENV/bin/python"
+elif [[ -x "$JLENS_VENV/Scripts/python.exe" ]]; then
+  PYTHON="$JLENS_VENV/Scripts/python.exe"   # a Windows venv
 elif command -v python3 >/dev/null 2>&1; then
   PYTHON="$(command -v python3)"
 else
@@ -59,8 +72,8 @@ else
   exit 1
 fi
 
-# --- Leg (c) FIRST so digest can go into tombstone notes ---
-echo "--- leg c: JLens apply ---"
+# --- Leg (c) FIRST so its digests can go into tombstone notes ---
+echo "--- leg c: JLens capture (upstream jlens.JacobianLens.apply) ---"
 if [[ ! -f "$JLENS_SNAPSHOT_PY" ]]; then
   echo "Missing jlens_snapshot.py at $JLENS_SNAPSHOT_PY" >&2
   exit 1
@@ -71,14 +84,26 @@ if [[ ! -f "$JLENS_LENS" ]]; then
   exit 1
 fi
 
-"$PYTHON" "$JLENS_SNAPSHOT_PY" \
+SNAP_OUT="$("$PYTHON" "$JLENS_SNAPSHOT_PY" \
   --task-id "$TASK_ID" \
   --prompt "$PROMPT" \
   --out "$SNAP_JSON" \
+  --raw "$SNAP_RAW" \
   --digest "$SNAP_DIGEST" \
-  --lens "$JLENS_LENS"
+  --lens "$JLENS_LENS")"
+printf '%s\n' "$SNAP_OUT"
 JLENS_DIGEST="$(head -1 "$SNAP_DIGEST")"
-JLENS_BODY="$(cat "$SNAP_JSON")"
+JLENS_CAPTURE_SHA256="$(printf '%s\n' "$SNAP_OUT" | sed -n 's/^JLENS_CAPTURE_SHA256=//p' | tr -d '\r')"
+
+echo "--- leg c: L-lens artifact (llens.py, built on the capture) ---"
+LLENS_OUT="$("$PYTHON" "$LLENS_PY" build --capture "$SNAP_JSON" --raw "$SNAP_RAW" --out "$LLENS_JSON")"
+printf '%s\n' "$LLENS_OUT"
+LLENS_SHA256="$(printf '%s\n' "$LLENS_OUT" | sed -n 's/^LLENS_SHA256=//p' | tr -d '\r')"
+if [[ ! "$JLENS_CAPTURE_SHA256" =~ ^[0-9a-f]{64}$ || ! "$LLENS_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "Lens leg produced no digest (capture=${JLENS_CAPTURE_SHA256:-none} llens=${LLENS_SHA256:-none})" >&2
+  exit 1
+fi
+"$PYTHON" "$LLENS_PY" verify --capture "$SNAP_JSON" --raw "$SNAP_RAW" --llens "$LLENS_JSON"
 
 # --- Leg (a) tombstone with JLens digest in notes ---
 echo "--- leg a: tombstone ---"
@@ -86,7 +111,7 @@ if [[ ! -x "$TOMBSTONE_APPEND" ]]; then
   echo "Missing tombstone append at $TOMBSTONE_APPEND" >&2
   exit 1
 fi
-COMBINED_NOTES="task_id=${TASK_ID}; jlens_digest=${JLENS_DIGEST}"
+COMBINED_NOTES="task_id=${TASK_ID}; jlens_capture_sha256=${JLENS_CAPTURE_SHA256}; llens_sha256=${LLENS_SHA256}; jlens_digest=${JLENS_DIGEST}"
 if [[ -n "$NOTES" ]]; then
   COMBINED_NOTES="${COMBINED_NOTES}; ${NOTES}"
 fi
@@ -105,24 +130,33 @@ done=${DONE}
 outcome=${OUTCOME}
 prompt=${PROMPT}
 jlens_digest=${JLENS_DIGEST}
+jlens_capture_sha256=${JLENS_CAPTURE_SHA256}
+llens_sha256=${LLENS_SHA256}
 "
-JLENS_BODY="$JLENS_BODY" "$PUT_COVENANT" "$TASK_ID" "$TASK_BODY" \
-  "triad task memory for ${TASK_ID}"
+JLENS_BODY_FILE="$SNAP_JSON" LLENS_BODY_FILE="$LLENS_JSON" COVENANT_SRC="$COVENANT_SRC" \
+  "$PUT_COVENANT" "$TASK_ID" "$TASK_BODY" "triad task memory for ${TASK_ID}"
 
-# Proof: all three legs share task_id
+# Proof: all three legs share task_id (rg when installed, else grep -F: same fixed-string search)
+has_rg() { command -v rg >/dev/null 2>&1; }
 echo "=== triad proof ==="
 echo "task_id=$TASK_ID"
 echo "jlens_snapshot=$SNAP_JSON"
-rg -n --fixed-strings "$TASK_ID" "$REPO_ROOT/tombstone/tombstone.md" | tail -5 || {
+{ if has_rg; then rg -n --fixed-strings "$TASK_ID" "$TOMBSTONE_LOG"; else grep -n -F "$TASK_ID" "$TOMBSTONE_LOG"; fi; } | tail -5 || {
   echo "PROOF FAIL: task_id not in tombstone" >&2
   exit 1
 }
-rg -n --fixed-strings "$TASK_ID" "$AI_MEMORY_ROOT" -g '*.md' | head -20 || {
+{ if has_rg; then rg -n --fixed-strings "$TASK_ID" "$AI_MEMORY_ROOT" -g '*.md'; else grep -rn -F --include='*.md' "$TASK_ID" "$AI_MEMORY_ROOT"; fi; } | head -20 || {
   echo "PROOF FAIL: task_id not in covenant memories" >&2
   exit 1
 }
-rg -n --fixed-strings "$TASK_ID" "$SNAP_JSON" || {
+{ if has_rg; then rg -n --fixed-strings "$TASK_ID" "$SNAP_JSON"; else grep -n -F "$TASK_ID" "$SNAP_JSON"; fi; } || {
   echo "PROOF FAIL: task_id not in jlens snapshot" >&2
   exit 1
 }
-echo "FIRE_TRIAD_OK task_id=$TASK_ID (tombstone + covenant + real jlens.apply)"
+echo "=== triad verification (task_id and digests agree across all three legs) ==="
+"$PYTHON" "$VERIFY_PY" --task-id "$TASK_ID" --run-dir "$SNAP_DIR" \
+  --tombstone-log "$TOMBSTONE_LOG" --memory-root "$AI_MEMORY_ROOT" || {
+  echo "PROOF FAIL: the three legs do not agree (see FAIL lines above)" >&2
+  exit 1
+}
+echo "FIRE_TRIAD_OK task_id=$TASK_ID (tombstone + covenant + L-lens over real jlens.apply; verified)"

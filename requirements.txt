@@ -8,5 +8,7 @@
 torch==2.14.1
 transformers==5.19.0
 huggingface_hub>=0.20.0
+numpy
+# tests: pip install pytest
 # jlens: install from git (not on PyPI as a stable pin here)
 #   pip install "jlens @ git+https://github.com/anthropics/jacobian-lens"

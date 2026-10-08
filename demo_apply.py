@@ -7,7 +7,10 @@ Lens:  pretrained gpt2-small lens (fetch via scripts/fetch_lens.sh)
 from __future__ import annotations
 
 import os
-import resource
+try:
+    import resource
+except ImportError:  # Windows has no resource module; RSS is then reported as nan
+    resource = None
 import time
 import traceback
 
@@ -30,6 +33,8 @@ TOP_K = 5
 
 
 def rss_mb() -> float:
+    if resource is None:
+        return float("nan")
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
 
 

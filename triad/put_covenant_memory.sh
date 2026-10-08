@@ -9,6 +9,12 @@
 #   JLENS_BODY — if set, also writes jlens-{TASK_ID} (type:jlens snapshot)
 #                CLI enum only allows user|feedback|project|reference;
 #                we use --type project and stamp type:jlens in body+description.
+#   JLENS_BODY_FILE / LLENS_BODY_FILE — the upstream JLens capture and the
+#                L-lens artifact, read from files (they can exceed one
+#                command-line argument); written as jlens-{TASK_ID} and
+#                llens-{TASK_ID} through triad/put_memory_file.py, which makes
+#                the same MemoryStore.put call main.py makes.
+#   PYTHON_COV — python for covenant's memory code (default python3)
 #   OBS_BODY — retired; ignored (self-observation is not a triad leg)
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -39,13 +45,32 @@ safe_name() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-'; }
 MEM_NAME="$(safe_name "task-${TASK_ID}")"
 
 echo "AI_MEMORY_ROOT=$AI_MEMORY_ROOT"
-python3 "$MAIN" --root "$AI_MEMORY_ROOT" put "$MEM_NAME" \
+"${PYTHON_COV:-python3}" "$MAIN" --root "$AI_MEMORY_ROOT" put "$MEM_NAME" \
   --description "$DESCRIPTION" \
   --type "$MEMORY_TYPE" \
   --body "$BODY" \
   --agent "$AGENT_NAME"
 
-if [[ -n "${JLENS_BODY:-}" ]]; then
+PUT_FILE="$DIR/put_memory_file.py"
+WROTE_EXTRA=""
+if [[ -n "${JLENS_BODY_FILE:-}" ]]; then
+  JLENS_NAME="$(safe_name "jlens-${TASK_ID}")"
+  "${PYTHON_COV:-python3}" "$PUT_FILE" --root "$AI_MEMORY_ROOT" --name "$JLENS_NAME" \
+    --description "type:jlens upstream Jacobian Lens capture (anthropics/jacobian-lens, Apache-2.0) for ${TASK_ID}" \
+    --type project --agent "$AGENT_NAME" --body-file "$JLENS_BODY_FILE" --covenant-src "$COVENANT_SRC"
+  WROTE_EXTRA="$WROTE_EXTRA $JLENS_NAME"
+fi
+if [[ -n "${LLENS_BODY_FILE:-}" ]]; then
+  LLENS_NAME="$(safe_name "llens-${TASK_ID}")"
+  "${PYTHON_COV:-python3}" "$PUT_FILE" --root "$AI_MEMORY_ROOT" --name "$LLENS_NAME" \
+    --description "type:llens Threefold L-lens observability/provenance artifact built on the JLens capture jlens-${TASK_ID}" \
+    --type project --agent "$AGENT_NAME" --body-file "$LLENS_BODY_FILE" --covenant-src "$COVENANT_SRC"
+  WROTE_EXTRA="$WROTE_EXTRA $LLENS_NAME"
+fi
+
+if [[ -n "$WROTE_EXTRA" ]]; then
+  echo "Wrote covenant memories: $MEM_NAME$WROTE_EXTRA under $AI_MEMORY_ROOT"
+elif [[ -n "${JLENS_BODY:-}" ]]; then
   JLENS_NAME="$(safe_name "jlens-${TASK_ID}")"
   # Real CLI type enum has no 'jlens'; stamp type:jlens in description+body.
   python3 "$MAIN" --root "$AI_MEMORY_ROOT" put "$JLENS_NAME" \

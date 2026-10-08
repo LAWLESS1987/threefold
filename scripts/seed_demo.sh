@@ -43,6 +43,8 @@ export JLENS_LENS="${JLENS_LENS:-$REPO_ROOT/gpt2_jacobian_lens.pt}"
 # Resolve python
 if [[ -x "$JLENS_VENV/bin/python" ]]; then
   PYTHON="$JLENS_VENV/bin/python"
+elif [[ -x "$JLENS_VENV/Scripts/python.exe" ]]; then
+  PYTHON="$JLENS_VENV/Scripts/python.exe"   # a Windows venv
 else
   PYTHON="$(command -v python3)"
 fi
@@ -51,7 +53,7 @@ echo "PYTHON=$PYTHON"
 if [[ "$MODE" == "apply" ]]; then
   echo "--- demo_apply.py ---"
   TRIAD_PROMPT="$PROMPT" JLENS_LENS="$JLENS_LENS" "$PYTHON" "$REPO_ROOT/demo_apply.py" | tee /tmp/triad_seed_demo_apply.log
-  rg -n "SUCCESS: lens.apply returned real top-k tokens" /tmp/triad_seed_demo_apply.log
+  grep -n -F "SUCCESS: lens.apply returned real top-k tokens" /tmp/triad_seed_demo_apply.log
   echo "SEED_DEMO_OK mode=apply"
   exit 0
 fi
@@ -79,7 +81,7 @@ if [[ "$MODE" == "triad" ]]; then
     "none" \
     "Third leg must be real jlens.apply not self-observation" \
     "seed-demo" | tee /tmp/triad_seed_demo_triad.log
-  rg -n "FIRE_TRIAD_OK" /tmp/triad_seed_demo_triad.log
+  grep -n -F "FIRE_TRIAD_OK" /tmp/triad_seed_demo_triad.log
   echo "SEED_DEMO_OK mode=triad task_id=$TASK_ID"
   exit 0
 fi

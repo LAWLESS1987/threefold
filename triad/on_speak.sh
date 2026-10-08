@@ -2,7 +2,7 @@
 # on_speak.sh — fire the mandatory triad for one Grok Bot spoken turn.
 #
 # Lawrence rule: every time Grok Bot speaks (SendToUser), it counts as a task.
-# This hook assigns a task_id and runs fire_triad.sh (tombstone ∥ covenant ∥ JLens).
+# This hook assigns a task_id and runs fire_triad.sh (tombstone ∥ covenant ∥ L-lens over Anthropic's Jacobian Lens).
 # No degrade mode: any leg failure exits nonzero.
 #
 # Usage:
