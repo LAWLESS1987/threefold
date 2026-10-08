@@ -17,7 +17,7 @@ _REPO = os.path.dirname(_HERE)
 DEFAULT_LENS = os.environ.get("JLENS_LENS", os.path.join(_REPO, "gpt2_jacobian_lens.pt"))
 MAX_SEQ_LEN = 1024  # GPT-2 context; last-window chunking for longer text
 MIDDLE_LAYERS = list(range(2, 11))  # dense middle band in fitted [0..10]
-SILENT_LEXICON = (
+SCREEN_LEXICON = (
     "fake",
     "fraud",
     "secretly",
@@ -28,6 +28,8 @@ SILENT_LEXICON = (
     "omit",
     "missing",
 )
+# Deprecated name, kept until the live runner moves (threefold PR #1 review, 2026-10-08).
+SILENT_LEXICON = SCREEN_LEXICON
 # Tombstone log to cross-check against. Override with LSPACE_TOMBSTONE.
 TOMBSTONE_DEFAULT = os.environ.get(
     "LSPACE_TOMBSTONE", os.path.join(_REPO, "tombstone", "tombstone.md")

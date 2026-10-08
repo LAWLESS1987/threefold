@@ -86,3 +86,28 @@ Reconcile this auditor with **L-lens at 2406473**. Questions to settle:
 - whether the gate and silent-intent layers should sit on `llens.py`'s readout;
 - whether the live `lspace-` / `jspace-` receipts map onto `verify_triad.py`;
 - which names survive.
+
+## Changes after review (2026-10-08, Claude; council item 5, Discussion #3)
+
+This section is added below Tien's review, which is kept as written above. Every change mirrors Tien's live
+HOLD-and-record change (Lawrence's go) and the agreed review findings:
+
+- **Decision.** BLOCK only on a tombstone contradiction. A lexicon-screen hit is a HOLD: exit 0, the reply proceeds,
+  and it is recorded. Inbound follows the same rule.
+- **Record.** `holds.jsonl` (`LSPACE_HOLDS`) gets one row per HOLD and BLOCK: `draft_sha256` (never text), `flagged`,
+  per-word ranks and hits, thresholds, `reason_kinds`, `contradiction_fact_ids`, `forced_demo`, `receipt` and
+  `label: null`. `record_block` stores `draft_sha256` instead of `text_preview`.
+- **Autotune frozen from gate events** (`LSPACE_AUTOTUNE_FROZEN=1` by default), because its automatic labels are
+  circular.
+- **Names.** "Silent intent" becomes "lexicon-association screen" (`lexicon_screen.py`, `score_lexicon_screen`,
+  `screen_flag`, `hit`, receipt key `lexicon_screen`). `silent_intent.py`, `SILENT_LEXICON`, `silent_lexicon_ranks` and
+  `--force-block-silent` remain as deprecated aliases until the live runner moves.
+- **README and docs.** The `jlens_snapshot.py` line now describes main at 2406473. The "Conscious Ledger" title
+  is retired from OPERATING_MODE.md, because nothing here measures consciousness.
+- **cp1252.** `smoke_test.py` reconfigures stdout to UTF-8.
+- **Tests on this tree** (Windows, CPU, GPT-2 and the neuronpedia lens, temp dirs):
+  - `smoke_test.py`: smoke_ok=True. The forced screen hit is a HOLD, recorded by hash with no text and
+    `label: null`. The tombstone contradiction is a BLOCK, recorded. Clean outbound and inbound are ALLOWed.
+  - `autotune_smoke.py`: smoke_ok=True.
+  - Ten honest sentences through `gate_outbound`: 0 BLOCK, 1 HOLD (it was a BLOCK before this change), 9 ALLOW.
+    That is one run of ten texts, not a rate.

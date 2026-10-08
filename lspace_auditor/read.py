@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import (
     MIDDLE_LAYERS,
     MAX_SEQ_LEN,
-    SILENT_LEXICON,
+    SCREEN_LEXICON,
     last_window_text,
     load_model_and_lens,
     select_positions,
@@ -59,7 +59,7 @@ def read_activations(
     per_layer_pos: dict[str, dict[str, list[str]]] = {}
     silent_ranks: dict[str, dict[str, dict[str, int | None]]] = {}
 
-    lexicon_ids = {w: token_id(tok, w) for w in SILENT_LEXICON}
+    lexicon_ids = {w: token_id(tok, w) for w in SCREEN_LEXICON}
 
     for layer in layers:
         logits = lens_logits[layer]  # [seq, V]
@@ -72,7 +72,7 @@ def read_activations(
             row = logits[p]
             toks = topk_tokens(row, tok, k=top_k)
             per_layer_pos[layer_key][str(p)] = toks
-            # rank of each silent lexicon token (0 = top)
+            # rank of each watched lexicon token (0 = top)
             ranks: dict[str, int | None] = {}
             # argsort descending
             order = row.argsort(descending=True)
@@ -100,7 +100,8 @@ def read_activations(
         "top_k": top_k,
         "jlens_top_k_by_layer_pos": per_layer_pos,
         "model_final_top_k_by_pos": model_pos,
-        "silent_lexicon_ranks": silent_ranks,
+        "screen_lexicon_ranks": silent_ranks,
+        "silent_lexicon_ranks": silent_ranks,  # deprecated key, same data, until the live runner moves
         "apply_s": round(time.perf_counter() - t0, 3),
         "mechanism": (
             "anthropics/jacobian-lens JacobianLens.apply multi-pos; "

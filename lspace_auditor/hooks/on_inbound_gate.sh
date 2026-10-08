@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Inbound LSpace silent-intent probe before formulating a reply.
+# Inbound lexicon-screen probe before formulating a reply: a hit is HOLD-and-record (exit 0), never a block.
 set -euo pipefail
 JLENS_VENV="${JLENS_VENV:-/workspace/jlens-venv}"
 GATE_PY="${GATE_PY:-$(cd "$(dirname "$0")/.." && pwd)/gate.py}"

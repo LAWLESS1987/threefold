@@ -15,13 +15,13 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import TOMBSTONE_DEFAULT
 from read import read_activations
-from silent_intent import score_silent_intent
+from lexicon_screen import score_lexicon_screen
 
 # Known corrections (ground truth the gate checks speaks against) are DATA, not code.
 # They are loaded from a JSON file so an operator's real facts stay private:
 #   LSPACE_KNOWN_FACTS=/path/to/known_facts.json   (default: known_facts.json beside this file)
 # See known_facts.example.json for the schema. With no file, there are no facts:
-# the gate still runs (silent-intent only) and no tombstone contradiction can fire.
+# the gate still runs (lexicon screen only, which can HOLD but never BLOCK) and no tombstone contradiction can fire.
 KNOWN_FACTS_PATH = os.environ.get(
     "LSPACE_KNOWN_FACTS",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "known_facts.json"),
@@ -126,16 +126,15 @@ def couple(speak: str, tombstone_path: str = TOMBSTONE_DEFAULT, task_id: str = "
         + ("\n\n" + KNOWN_CORRECTIONS_LINE + "\n" if KNOWN_CORRECTIONS_LINE else "\n")
     )
     snap = read_activations(prompt, stride=8, tail=12, top_k=5)
-    silent = score_silent_intent(speak, snapshot=None, rank_thresh=80, min_hits=2)
-    # Re-score silent on speak alone (surface), but keep snap for activation table
-    silent = score_silent_intent(speak, rank_thresh=80, min_hits=2)
+    # Lexicon screen on the speak alone (surface); snap above is kept for the activation table
+    screen = score_lexicon_screen(speak, rank_thresh=80, min_hits=2)
     contra = check_contradictions(speak)
 
     status = "match"
     if contra["blocked"]:
         status = "contradict"
-    elif silent.get("blocked"):
-        status = "silent"
+    elif screen.get("hit"):
+        status = "screen_hit"
     elif contra["matches"]:
         status = "match"
     else:
@@ -149,9 +148,9 @@ def couple(speak: str, tombstone_path: str = TOMBSTONE_DEFAULT, task_id: str = "
         "facts": facts,
         "activation_vs_tombstone": status,
         "contradiction_check": contra,
-        "silent_intent": {
-            "flagged": silent.get("flagged"),
-            "blocked": silent.get("blocked"),
+        "lexicon_screen": {
+            "flagged": screen.get("flagged"),
+            "hit": screen.get("hit"),
         },
         "lspace_snapshot_digest": {
             "seq_len": snap.get("seq_len"),

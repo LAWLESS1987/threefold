@@ -16,7 +16,7 @@ pip install -r ../requirements.txt   # then: pip install "jlens @ git+https://gi
 export LSPACE_TOMBSTONE=../tombstone/tombstone.md
 export LSPACE_KNOWN_FACTS=./known_facts.json   # optional; copy known_facts.example.json
 python read.py --prompt-file speak.txt --out snap.json
-python silent_intent.py --prompt-file speak.txt
+python lexicon_screen.py --prompt-file speak.txt
 python intervene.py --op swap --concept-a spider --concept-b ant
 python couple_tombstone.py --speak-file speak.txt
 python gate.py inbound "Operator message…"
@@ -25,7 +25,9 @@ LSPACE_SMOKE_DIR=/tmp/lspace_smoke python smoke_test.py      # generic fixtures
 LSPACE_SMOKE_DIR=/tmp/lspace_smoke python autotune_smoke.py  # no GPT-2 needed
 ```
 
-Gate exit: `0` ALLOW, `2` BLOCK, `3` error.
+Gate exit: `0` ALLOW or HOLD, `2` BLOCK, `3` error.
+
+**Decision.** BLOCK only on a tombstone contradiction: the draft states something the known facts contradict, checked deterministically. A lexicon-screen hit is a HOLD: the reply proceeds and the hold is recorded in `holds.jsonl` with the draft's sha256 and never its text, plus `label: null` for a person to fill in. Auto-tuning is frozen from gate events (`LSPACE_AUTOTUNE_FROZEN=1`), so thresholds move only from labels a person gives. The lexicon screen is GPT-2's word association while reading the draft. It is not anyone's intent (threefold PR #1 review, 2026-10-08).
 
 ## Environment
 
@@ -42,7 +44,7 @@ Gate exit: `0` ALLOW, `2` BLOCK, `3` error.
 
 Tombstone contradiction rules are **data**, not code: `known_facts.json`
 (schema in `known_facts.example.json`). Real facts are operator ground truth
-and stay private. Without the file the gate still runs (silent-intent only).
+and stay private. Without the file the gate still runs: the lexicon screen can HOLD, and nothing can BLOCK.
 
 ## Hooks
 
@@ -52,4 +54,5 @@ and stay private. Without the file the gate still runs (silent-intent only).
 
 ## Naming
 - This tree = **LSpace** auditor (earlier name); **L-lens** = ours; **J-lens** = Anthropic’s.
-- `jlens_snapshot.py` (GPT-2 top-k triad snapshot) = **demoted proxy_jlens** — never the gate.
+- `jlens_snapshot.py` (on main since 2406473) is the full JLens capture L-lens is built on. The auditor's screen does not use it yet (see the tracked-rank bridge).
+- "Silent intent" is retired as a name: the screen is the **lexicon-association screen** (`lexicon_screen.py`). `silent_intent.py` and `--force-block-silent` remain as deprecated aliases until the live runner moves.

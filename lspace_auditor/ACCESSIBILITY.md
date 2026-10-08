@@ -15,12 +15,13 @@
 
 ## What this build IS
 A **speak-text LSpace auditor**: multi-position Jacobian-lens reads of an open model
-processing the **full speak draft** (+ optional tombstone excerpt), with silent-intent
-scoring, write-ops demos, and an operating **gate** that can block speaks.
+processing the **full speak draft** (+ optional tombstone excerpt), with a lexicon-association
+screen (HOLD-and-record), write-ops demos, and an operating **gate** that blocks a speak only on a tombstone contradiction.
 
 Honest name: **speak-text LSpace auditor** — **not** Grok Bot’s own J-space.
 
 ## Naming rule (hard)
 - Call this system **LSpace** / `lspace_*` / type:`lspace`.
-- The old GPT-2 top-k triad snapshot (`jlens_snapshot.py`, L3/6/9/10, pos −2, ≤480-char)
+- The old GPT-2 top-k triad snapshot (`jlens_snapshot.py`, L3/6/9/10, pos −2, ≤480-char; on threefold main since
+  2406473 it is the full capture L-lens is built on)
   is **DEMOTTED proxy** — **never call it LSpace**. Prefer `proxy_jlens`.

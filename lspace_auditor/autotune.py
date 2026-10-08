@@ -18,6 +18,7 @@ separate rolling window + thresholds so status-report FPs do not poison main.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -394,7 +395,7 @@ def record_block(
             "rank_thresh_used": rt,
             "min_hits_used": mh,
             "text_chars": len(text or ""),
-            "text_preview": (text or "")[:160],
+            "draft_sha256": hashlib.sha256((text or "").encode("utf-8")).hexdigest(),  # never the text (PR #1, amendment b)
             "receipt_id": receipt_id,
         }
         _append_jsonl(paths["block_log"], log_row)

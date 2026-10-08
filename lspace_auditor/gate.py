@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
-"""Operating gate: route inbound/outbound through speak-text LSpace auditor + tombstone.
+"""Operating gate: route inbound/outbound through the speak-text auditor and the tombstone fact check.
+
+Decision (threefold PR #1 review and Lawrence's go for the live runner, 2026-10-08):
+  BLOCK  a tombstone contradiction: the draft states something the known facts contradict. Deterministic.
+  HOLD   the lexicon-association screen hit and nothing contradicts. GPT-2's word association while reading the
+         draft is a pointer for a person, not evidence: the reply proceeds, and the hold is recorded.
+  ALLOW  neither.
 
 Exit codes:
-  0 = ALLOW
-  2 = BLOCK (silent intent and/or tombstone contradiction)
+  0 = ALLOW or HOLD (a HOLD is recorded in holds.jsonl; the speak proceeds)
+  2 = BLOCK (tombstone contradiction)
   3 = hard error
 
-Never uses demoted GPT-2 proxy as gate. Never claims Grok Bot residuals.
+Every HOLD and BLOCK appends one row to holds.jsonl (LSPACE_HOLDS, default <autotune state dir>/holds.jsonl): the
+draft's sha256 and never its text, the flagged words, the thresholds and reasons, and label: null for a person to
+fill in. Auto-tuning is frozen from gate events (LSPACE_AUTOTUNE_FROZEN=1 by default): thresholds move only from
+labels a person gives, because the old automatic labels presumed every screen-only block false.
 
-Outbound silent-intent thresholds are loaded from autotune state and updated
-automatically on every silent-intent BLOCK (no manual step).
+Never uses demoted GPT-2 proxy as gate. Never claims Grok Bot residuals.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -24,7 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import TOMBSTONE_DEFAULT
 from couple_tombstone import check_contradictions, couple
 from read import read_activations
-from silent_intent import score_silent_intent
+from lexicon_screen import score_lexicon_screen
 
 try:
     import autotune as _autotune
@@ -47,6 +56,55 @@ def _write_receipt(path: str, body: dict) -> None:
         f.write("\n")
 
 
+def _autotune_frozen() -> bool:
+    """Frozen unless LSPACE_AUTOTUNE_FROZEN=0 (not recommended: the automatic labels are circular)."""
+    return os.environ.get("LSPACE_AUTOTUNE_FROZEN", "1") != "0"
+
+
+def _holds_path(state_dir: str | None) -> str:
+    p = os.environ.get("LSPACE_HOLDS")
+    if p:
+        return p
+    base = state_dir
+    if not base and _autotune is not None:
+        base = _autotune.resolve_state_dir(None)
+    return os.path.join(base or os.path.join(os.path.dirname(os.path.abspath(__file__)), "state"), "holds.jsonl")
+
+
+def _record_hold(*, direction: str, decision: str, text: str, screen: dict, thresholds: dict, reasons: list,
+                 receipt_path: str, state_dir: str | None) -> dict:
+    """One row per HOLD or BLOCK: counted later by a person, never published with its words."""
+    row = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "task_id": os.environ.get("TASK_ID") or None,
+        "direction": direction,
+        "decision": decision,
+        "draft_sha256": hashlib.sha256((text or "").encode("utf-8")).hexdigest(),
+        "text_chars": len(text or ""),
+        "flagged": screen.get("flagged") or [],
+        "per_word": {w: {"best_rank": v.get("best_rank"), "hits": v.get("hits_below_thresh")}
+                     for w, v in (screen.get("per_word") or {}).items() if w in (screen.get("flagged") or [])},
+        "thresholds": thresholds,
+        "reason_kinds": [r.get("kind") for r in reasons],
+        "contradiction_fact_ids": [c.get("fact_id") for r in reasons for c in (r.get("contradictions") or [])],
+        "forced_demo": bool(screen.get("forced_demo")),
+        "receipt": receipt_path or None,
+        "label": None,
+    }
+    path = _holds_path(state_dir)
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return {"path": path, "draft_sha256": row["draft_sha256"]}
+
+
+POLICY = {
+    "block_on": "tombstone_contradiction",
+    "lexicon_screen": "HOLD and record, never block",
+    "autotune": "frozen from gate events; thresholds move only from labels a person gives",
+}
+
+
 def _outbound_thresholds(state_dir: str | None, category_hint: str = "main") -> tuple[int, int, dict]:
     """Load current outbound thresholds. Pre-score uses main; meta re-score optional."""
     if _autotune is None:
@@ -59,31 +117,41 @@ def _outbound_thresholds(state_dir: str | None, category_hint: str = "main") -> 
     return rt, mh, {"state_dir": sdir, "snapshot": snap, "state": st}
 
 
-def gate_inbound(text: str, *, receipt_path: str = "", force_block_silent: bool = False) -> dict:
+def gate_inbound(text: str, *, receipt_path: str = "", force_screen_hit: bool = False,
+                 force_block_silent: bool = False) -> dict:
+    """force_block_silent is the deprecated name of force_screen_hit; a forced hit now HOLDs, as any screen hit."""
+    force_screen_hit = force_screen_hit or force_block_silent
     t0 = time.perf_counter()
     prompt = f"Lawrence inbound message to Grok Bot:\n{text}"
     snap = read_activations(prompt, stride=6, tail=16, top_k=5)
-    silent = score_silent_intent(
+    screen = score_lexicon_screen(
         text, snapshot=snap, rank_thresh=INBOUND_RANK_THRESH, min_hits=INBOUND_MIN_HITS
     )
-    if force_block_silent:
-        silent = dict(silent)
-        silent["flagged"] = list(set(silent.get("flagged") or []) | {"fake"})
-        silent["blocked"] = True
-        silent["forced_demo"] = True
+    if force_screen_hit:
+        screen = dict(screen)
+        screen["flagged"] = list(set(screen.get("flagged") or []) | {"fake"})
+        screen["hit"] = True
+        screen["forced_demo"] = True
 
     decision = "ALLOW"
     reasons = []
-    if silent.get("blocked"):
-        decision = "BLOCK"
-        reasons.append({"kind": "silent_intent", "flagged": silent.get("flagged")})
+    if screen.get("hit"):
+        decision = "HOLD"
+        reasons.append({"kind": "lexicon_screen", "flagged": screen.get("flagged")})
+    hold_record = None
+    if decision != "ALLOW":
+        hold_record = _record_hold(direction="inbound", decision=decision, text=text, screen=screen,
+                                   thresholds={"rank_thresh": INBOUND_RANK_THRESH, "min_hits": INBOUND_MIN_HITS},
+                                   reasons=reasons, receipt_path=receipt_path, state_dir=None)
 
     body = {
         "type": "lspace_gate_receipt",
         "direction": "inbound",
         "decision": decision,
         "reasons": reasons,
-        "silent_intent": silent,
+        "policy": POLICY,
+        "hold_record": hold_record,
+        "lexicon_screen": screen,
         "lspace": {
             "seq_len": snap.get("seq_len"),
             "layers": snap.get("layers"),
@@ -111,12 +179,15 @@ def gate_outbound(
     *,
     receipt_path: str = "",
     tombstone: str = TOMBSTONE_DEFAULT,
-    force_block_silent: bool = False,
+    force_screen_hit: bool = False,
     force_block_tombstone: bool = False,
     skip_full_couple_snapshot: bool = False,
     autotune_dir: str | None = None,
     verdict: str | None = None,
+    force_block_silent: bool = False,
 ) -> dict:
+    """force_block_silent is the deprecated name of force_screen_hit; a forced hit now HOLDs, as any screen hit."""
+    force_screen_hit = force_screen_hit or force_block_silent
     t0 = time.perf_counter()
     at_info: dict = {"enabled": False}
     state_dir = None
@@ -136,23 +207,23 @@ def gate_outbound(
     else:
         rt, mh = OUTBOUND_RANK_THRESH, OUTBOUND_MIN_HITS
 
-    # 1) silent intent on FULL speak (no 480 truncate)
+    # 1) lexicon screen on the FULL speak (no 480 truncate)
     snap = read_activations(
         f"Grok Bot speaking to Lawrence:\n{text}",
         stride=6,
         tail=16,
         top_k=5,
     )
-    silent = score_silent_intent(text, snapshot=snap, rank_thresh=rt, min_hits=mh)
+    screen = score_lexicon_screen(text, snapshot=snap, rank_thresh=rt, min_hits=mh)
 
     # Re-classify with flagged words; if category flipped to meta and thresholds differ, re-score
     if _autotune is not None and state_dir is not None:
-        cat2 = _autotune.classify_category(text, flagged=silent.get("flagged"))
+        cat2 = _autotune.classify_category(text, flagged=screen.get("flagged"))
         if cat2 != at_info.get("category_pre"):
             st = _autotune.load_state(state_dir)
             rt2, mh2 = _autotune.get_thresholds(st, cat2)
             if (rt2, mh2) != (rt, mh):
-                silent = score_silent_intent(
+                screen = score_lexicon_screen(
                     text, snapshot=snap, rank_thresh=rt2, min_hits=mh2
                 )
                 rt, mh = rt2, mh2
@@ -163,11 +234,11 @@ def gate_outbound(
                 "category": cat2,
             }
 
-    if force_block_silent:
-        silent = dict(silent)
-        silent["flagged"] = list(set(silent.get("flagged") or []) | {"fraud"})
-        silent["blocked"] = True
-        silent["forced_demo"] = True
+    if force_screen_hit:
+        screen = dict(screen)
+        screen["flagged"] = list(set(screen.get("flagged") or []) | {"fraud"})
+        screen["hit"] = True
+        screen["forced_demo"] = True
 
     # 2) tombstone cross-check
     if skip_full_couple_snapshot:
@@ -205,9 +276,9 @@ def gate_outbound(
 
     decision = "ALLOW"
     reasons = []
-    if silent.get("blocked"):
-        decision = "BLOCK"
-        reasons.append({"kind": "silent_intent", "flagged": silent.get("flagged")})
+    if screen.get("hit"):
+        decision = "HOLD"
+        reasons.append({"kind": "lexicon_screen", "flagged": screen.get("flagged")})
     if contra.get("blocked"):
         decision = "BLOCK"
         reasons.append(
@@ -217,23 +288,26 @@ def gate_outbound(
             }
         )
 
-    # 3) Auto-tune on silent-intent BLOCK (no manual step)
+    # 3) Auto-tune: frozen from gate events by default (record_block's automatic labels presume every screen-only
+    #    event false). Thresholds move only from labels a person writes into holds.jsonl.
+    at_info["frozen"] = _autotune_frozen()
     if (
         _autotune is not None
         and state_dir is not None
-        and silent.get("blocked")
-        and any(r.get("kind") == "silent_intent" for r in reasons)
+        and not at_info["frozen"]
+        and screen.get("hit")
+        and any(r.get("kind") == "lexicon_screen" for r in reasons)
     ):
         verd_override = _autotune.resolve_verdict_override(verdict)
         tune = _autotune.record_block(
             text=text,
-            flagged=silent.get("flagged"),
+            flagged=screen.get("flagged"),
             tombstone_contradictions=contra.get("contradictions"),
-            forced_demo=bool(silent.get("forced_demo")),
+            forced_demo=bool(screen.get("forced_demo")),
             verdict=verd_override,
             category=None,  # auto-classify
             state_dir=state_dir,
-            reason_kind="silent_intent",
+            reason_kind="lexicon_screen",
             receipt_id=receipt_path or None,
         )
         at_info.update(
@@ -249,26 +323,34 @@ def gate_outbound(
             }
         )
 
+    hold_record = None
+    if decision != "ALLOW":
+        hold_record = _record_hold(direction="outbound", decision=decision, text=text, screen=screen,
+                                   thresholds={"rank_thresh": rt, "min_hits": mh}, reasons=reasons,
+                                   receipt_path=receipt_path, state_dir=state_dir)
+
     body = {
         "type": "lspace_gate_receipt",
         "direction": "outbound",
         "decision": decision,
         "reasons": reasons,
-        "silent_intent": {
-            "flagged": silent.get("flagged"),
-            "blocked": silent.get("blocked"),
+        "policy": POLICY,
+        "hold_record": hold_record,
+        "lexicon_screen": {
+            "flagged": screen.get("flagged"),
+            "hit": screen.get("hit"),
             "rank_thresh": rt,
             "min_hits": mh,
             "per_word_summary": {
                 w: {
-                    "silent_flag": v.get("silent_flag"),
+                    "screen_flag": v.get("screen_flag"),
                     "best_rank": v.get("best_rank"),
                     "hits": v.get("hits_below_thresh"),
                     "on_surface": v.get("on_surface"),
                 }
-                for w, v in (silent.get("per_word") or {}).items()
+                for w, v in (screen.get("per_word") or {}).items()
             },
-            "forced_demo": silent.get("forced_demo"),
+            "forced_demo": screen.get("forced_demo"),
         },
         "tombstone_check": couple_slim,
         "lspace": {
@@ -295,7 +377,7 @@ def gate_outbound(
             None
             if decision == "ALLOW"
             else (
-                "LSPACE GATE BLOCK: "
+                f"GATE {decision}: "
                 + "; ".join(
                     r["kind"]
                     + (
@@ -305,8 +387,13 @@ def gate_outbound(
                     )
                     for r in reasons
                 )
-                + ". Problematic content withheld. Instrument=speak-text auditor + tombstone "
-                "(not Grok Bot residuals; not demoted proxy_jlens)."
+                + (
+                    ". The draft contradicts a known fact and is withheld."
+                    if decision == "BLOCK"
+                    else ". GPT-2's word association while reading the draft, not the speaker's intent; recorded "
+                    "for a person to label, and the reply proceeds."
+                )
+                + " Instrument=speak-text auditor + tombstone (not Grok Bot residuals; not demoted proxy_jlens)."
             )
         ),
     }
@@ -323,7 +410,8 @@ def main() -> int:
         p.add_argument("--text-file", dest="text_file", default="", metavar="PATH")
         p.add_argument("--speak-text", dest="speak_text", default="", help="inline text (prefer over positional when flags present)")
         p.add_argument("--receipt", default="", help="write JSON receipt path")
-        p.add_argument("--force-block-silent", action="store_true")
+        p.add_argument("--force-screen-hit", "--force-block-silent", dest="force_screen_hit", action="store_true",
+                       help="force a lexicon-screen hit (HOLDs; --force-block-silent is the deprecated name)")
 
     pin = sub.add_parser("inbound", help="probe Lawrence inbound before reply")
     add_common(pin)
@@ -338,7 +426,7 @@ def main() -> int:
         "--verdict",
         default="",
         choices=["", "false_positive", "true_catch", "pending"],
-        help="override tombstone verdict for this BLOCK (calibration)",
+        help="override the calibration verdict (used only when LSPACE_AUTOTUNE_FROZEN=0)",
     )
 
     args = ap.parse_args()
@@ -346,20 +434,20 @@ def main() -> int:
     if args.text_file:
         with open(args.text_file, encoding="utf-8") as f:
             text = f.read()
-    if not text and not args.force_block_silent and not getattr(args, "force_block_tombstone", False):
+    if not text and not args.force_screen_hit and not getattr(args, "force_block_tombstone", False):
         print("need text", file=sys.stderr)
         return 3
 
     if args.cmd == "inbound":
         body = gate_inbound(
-            text, receipt_path=args.receipt, force_block_silent=args.force_block_silent
+            text, receipt_path=args.receipt, force_screen_hit=args.force_screen_hit
         )
     else:
         body = gate_outbound(
             text,
             receipt_path=args.receipt,
             tombstone=args.tombstone,
-            force_block_silent=args.force_block_silent,
+            force_screen_hit=args.force_screen_hit,
             force_block_tombstone=args.force_block_tombstone,
             skip_full_couple_snapshot=args.fast,
             autotune_dir=args.autotune_dir or None,

@@ -1,4 +1,11 @@
-# LSpace silent-intent auto-tune
+# LSpace lexicon-screen auto-tune
+
+> **Status, 2026-10-08: frozen from gate events.** `gate.py` no longer calls `record_block` unless
+> `LSPACE_AUTOTUNE_FROZEN=0`. The automatic labels below presume every screen-only event is a false positive
+> (`classify_verdict`), so tuning on them is circular (threefold PR #1 review, 2026-10-08). Every HOLD and BLOCK is
+> recorded in `holds.jsonl` by hash with `label: null`. Thresholds should move only from labels a person writes
+> there. `record_block` now stores `draft_sha256`, never a text preview. "Silent intent" is the retired name of the
+> lexicon-association screen. The mechanism below is kept as written, for when tuning is unfrozen.
 
 Continuous calibration of outbound silent-intent thresholds from observed
 false-positive rate while the gate is on. **No manual step** in the live path.

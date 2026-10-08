@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse, json, os, sys
 sys.path.insert(0, os.environ.get("LSPACE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from read import read_activations
-from silent_intent import score_silent_intent
+from lexicon_screen import score_lexicon_screen
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -20,10 +20,10 @@ def main() -> int:
             prompt = f.read()
     snap = read_activations(prompt, stride=6, tail=16, top_k=5)
     snap["task_id"] = args.task_id
-    silent = score_silent_intent(prompt, snapshot=snap)
-    snap["silent_intent_summary"] = {
-        "flagged": silent.get("flagged"),
-        "blocked": silent.get("blocked"),
+    screen = score_lexicon_screen(prompt, snapshot=snap)
+    snap["lexicon_screen_summary"] = {
+        "flagged": screen.get("flagged"),
+        "hit": screen.get("hit"),
     }
     os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
@@ -36,7 +36,7 @@ def main() -> int:
         sample.append(f"L{L}: {toks}")
     digest = (
         f"lspace task_id={args.task_id} seq={snap.get('seq_len')} "
-        f"npos={len(snap.get('positions') or [])} silent={silent.get('flagged')} "
+        f"npos={len(snap.get('positions') or [])} screen={screen.get('flagged')} "
         f"sample={{{'; '.join(sample)}}}"
     )
     if args.digest:

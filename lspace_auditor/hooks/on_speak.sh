@@ -4,7 +4,9 @@
 # Lawrence rule: every speak is a task. Operating mode: outbound LSpace gate on
 # FULL speak text BEFORE triad/SendToUser success path.
 # - ALLOW  → fire_triad with lspace receipt (proxy_jlens demoted, not gate)
-# - BLOCK  → write FLAG receipt, optional flag triad, exit 3 (do NOT claim speak success)
+# - HOLD   → the same as ALLOW: the speak proceeds, the gate recorded the hold by hash in holds.jsonl,
+#            and the notes say lspace_gate=HOLD (a lexicon-screen hit is a pointer, never a block)
+# - BLOCK  → a tombstone contradiction: write FLAG receipt, optional flag triad, exit 3 (do NOT claim speak success)
 #
 # Usage:
 #   ./on_speak.sh "exact words spoken to the user" [optional-title]
@@ -74,7 +76,7 @@ if [[ "$GATE_EC" -eq 2 ]]; then
   export OUTCOME="blocked"
   export PROMPT="LSPACE_GATE_FLAG: ${FLAG_MSG}"
   export MISTAKES="gate_block"
-  export LESSONS="Silent intent or tombstone contradiction must not be spoken"
+  export LESSONS="A tombstone contradiction must not be spoken"
   export NOTES="hook=on_speak.sh; gate=BLOCK; speak_chars=${#SPOKEN_TEXT}; gate_receipt=$GATE_RECEIPT"
   export LSPACE_BODY_FILE="$GATE_RECEIPT"
   export SKIP_PROXY_JLENS=1
@@ -97,7 +99,8 @@ PROMPT="Grok Bot speaking to Lawrence: ${SPOKEN_TEXT}"
 TASK="Assistant speak-turn: deliver user-visible message"
 DONE="Spoke to user via SendToUser; triad logged under shared task_id"
 OUTCOME="success"
-NOTES="hook=on_speak.sh; speak_chars=${#SPOKEN_TEXT}; lspace_gate=ALLOW; gate_receipt=$GATE_RECEIPT"
+GATE_DECISION="$(python3 -c "import json;print(json.load(open('$GATE_RECEIPT')).get('decision') or 'ALLOW')" 2>/dev/null || echo ALLOW)"
+NOTES="hook=on_speak.sh; speak_chars=${#SPOKEN_TEXT}; lspace_gate=${GATE_DECISION}; gate_receipt=$GATE_RECEIPT"
 
 export TITLE TASK DONE OUTCOME PROMPT
 export MISTAKES="${MISTAKES:-none}"

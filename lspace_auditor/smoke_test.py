@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Smoke: multi-pos read, silent-intent, intervene swap, tombstone couple, gate demos."""
+"""Smoke: multi-pos read, lexicon screen, intervene swap, tombstone couple, gate demos (BLOCK / HOLD / ALLOW)."""
 from __future__ import annotations
 
 import json
 import os
 import sys
 import traceback
+
+if hasattr(sys.stdout, "reconfigure"):  # cp1252 consoles (Windows) cannot print the arrows in the log
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -19,6 +22,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # unless the caller points these variables at them on purpose.
 os.environ.setdefault("LSPACE_KNOWN_FACTS", os.path.join(_HERE, "known_facts.example.json"))
 os.environ.setdefault("LSPACE_AUTOTUNE_DIR", os.path.join(OUT_DIR, "state"))
+os.environ.setdefault("LSPACE_HOLDS", os.path.join(OUT_DIR, "holds.jsonl"))
 _EXAMPLE_TOMBSTONE = os.path.join(OUT_DIR, "tombstone_example.md")
 if "LSPACE_TOMBSTONE" not in os.environ:
     with open(_EXAMPLE_TOMBSTONE, "w", encoding="utf-8") as _f:
@@ -67,24 +71,24 @@ def main() -> int:
         log(traceback.format_exc())
         log("```")
 
-    # --- silent intent ---
+    # --- lexicon screen (GPT-2's word association while reading the draft; not the speaker's intent) ---
     try:
-        from silent_intent import score_silent_intent
+        from lexicon_screen import score_lexicon_screen
 
-        silent = score_silent_intent(speak, snapshot=snap)
-        with open(f"{OUT_DIR}/silent.json", "w") as f:
-            json.dump(silent, f, indent=2)
-        log("## Silent-intent scores")
-        log(f"- flagged={silent['flagged']} blocked={silent['blocked']}")
-        for w, v in silent["per_word"].items():
+        screen = score_lexicon_screen(speak, snapshot=snap)
+        with open(f"{OUT_DIR}/lexicon_screen.json", "w") as f:
+            json.dump(screen, f, indent=2)
+        log("## Lexicon-screen scores")
+        log(f"- flagged={screen['flagged']} hit={screen['hit']}")
+        for w, v in screen["per_word"].items():
             log(
                 f"  - {w}: on_surface={v['on_surface']} best_rank={v['best_rank']} "
-                f"hits={v['hits_below_thresh']} silent_flag={v['silent_flag']}"
+                f"hits={v['hits_below_thresh']} screen_flag={v['screen_flag']}"
             )
         log()
     except Exception:
         ok = False
-        log("## Silent-intent FAILED")
+        log("## Lexicon screen FAILED")
         log("```")
         log(traceback.format_exc())
         log("```")
@@ -179,13 +183,14 @@ def main() -> int:
         )
         log(f"- outbound ALLOW path decision={outbound['decision']} chars={outbound['text_chars']} elapsed={outbound['elapsed_s']}s")
 
-        block_silent = gate_outbound(
-            "This report is complete and accurate.",
-            receipt_path=f"{OUT_DIR}/gate_outbound_silent_block.json",
-            force_block_silent=True,
+        held_text = "This report is complete and accurate."
+        hold_screen = gate_outbound(
+            held_text,
+            receipt_path=f"{OUT_DIR}/gate_outbound_screen_hold.json",
+            force_screen_hit=True,
             skip_full_couple_snapshot=True,
         )
-        log(f"- forced silent-intent BLOCK decision={block_silent['decision']} flag={block_silent.get('flag_message')}")
+        log(f"- forced lexicon-screen HOLD decision={hold_screen['decision']} flag={hold_screen.get('flag_message')}")
 
         block_tomb = gate_outbound(
             "Correction: there were 12 builds in the example nightly.",
@@ -194,9 +199,24 @@ def main() -> int:
         )
         log(f"- tombstone-contradiction BLOCK decision={block_tomb['decision']}")
         log(f"  reasons={block_tomb['reasons']}")
-        if block_silent["decision"] != "BLOCK" or block_tomb["decision"] != "BLOCK":
+        if hold_screen["decision"] != "HOLD" or block_tomb["decision"] != "BLOCK":
             ok = False
-            log("- FAIL: expected BLOCK on forced silent and tombstone demos")
+            log("- FAIL: expected HOLD on the forced screen hit and BLOCK on the tombstone contradiction")
+        import hashlib
+        holds_path = os.environ["LSPACE_HOLDS"]
+        holds_text = open(holds_path, encoding="utf-8").read() if os.path.exists(holds_path) else ""
+        rows = [json.loads(l) for l in holds_text.splitlines() if l.strip()]
+        want = hashlib.sha256(held_text.encode("utf-8")).hexdigest()
+        held_rows = [r for r in rows if r.get("decision") == "HOLD" and r.get("draft_sha256") == want]
+        log(f"- holds.jsonl: {len(rows)} row(s); the HOLD is recorded by hash: {bool(held_rows)}; "
+            f"no draft text in the file: {held_text not in holds_text}; label left for a person: "
+            f"{bool(held_rows) and held_rows[-1].get('label') is None}")
+        if not held_rows or held_text in holds_text or held_rows[-1].get("label") is not None:
+            ok = False
+            log("- FAIL: a HOLD must be recorded by its hash, with no text and an empty label")
+        if not any(r.get("decision") == "BLOCK" for r in rows):
+            ok = False
+            log("- FAIL: the BLOCK was not recorded in holds.jsonl")
         if outbound["decision"] != "ALLOW":
             log(f"- WARN: clean outbound not ALLOW ({outbound['decision']})")
         log()
