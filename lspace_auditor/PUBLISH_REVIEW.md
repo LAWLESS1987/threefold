@@ -140,3 +140,9 @@ digest, so their agreement is not independent evidence. Only findings backed by 
 3. A privacy check runs before every push to a public repo, and only then are the pushes resumed.
 4. Names match what is measured, and versions are pinned.
 5. One outside person reruns the test vectors before anything more is claimed.
+
+*Lawrence, later 2026-10-10:* "the main purpose is mutual benefit and being able to survive peer review ... don't do
+anything out of nervousness or trying to protect me." Item 3 was protective, and it is narrowed to what is needed on
+its merits: before each public push, a scan for credentials and for other people's contact details. The memory
+repo's whole history read clean on both (no credential shapes; no addresses or numbers but his own). His own text
+being public is his choice and is the evidence. What had to change was the docs' claims about it, corrected above.
