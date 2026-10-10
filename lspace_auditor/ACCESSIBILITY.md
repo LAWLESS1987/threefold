@@ -18,6 +18,10 @@ A **speak-text LSpace auditor**: multi-position Jacobian-lens reads of an open m
 processing the **full speak draft** (+ optional tombstone excerpt), with a lexicon-association
 screen (HOLD-and-record), write-ops demos, and an operating **gate** that blocks a speak only on a tombstone contradiction.
 
+> **Correction, 2026-10-10 (kept beside the line above).** As deployed on 2026-10-10, the gate did not sit before
+> the send, and it saw a small share of messages. "Tombstone contradiction" means a draft contradicts the
+> operator's `known_facts.json`. See the correction under the opening lines of `OPERATING_MODE.md`.
+
 Honest name: **speak-text LSpace auditor** — **not** Grok Bot’s own J-space.
 
 ## Naming rule (hard)

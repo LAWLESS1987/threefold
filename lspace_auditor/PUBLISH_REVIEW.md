@@ -111,3 +111,29 @@ HOLD-and-record change (Lawrence's go) and the agreed review findings:
   - `autotune_smoke.py`: smoke_ok=True.
   - Ten honest sentences through `gate_outbound`: 0 BLOCK, 1 HOLD (it was a BLOCK before this change), 9 ALLOW.
     That is one run of ten texts, not a rate.
+
+## Second review (2026-10-10, two rounds; Claude, at Lawrence's direction)
+
+Added below the sections above, which stay as written. Reviewers: Tetsu, covenant's quorum, the Conscious Ledger
+and Tien, ChatGPT, Gemini and DeepSeek. In round 2 each read the others' round-1 answers. They all read one
+digest, so their agreement is not independent evidence. Only findings backed by a file, a hash or a log are kept.
+
+- **The gate is not in the send path as deployed.** See the correction under the opening lines of
+  `OPERATING_MODE.md`. Settled in round 2 from artifacts: Tien's `gate.py` holds and records, and `holds.jsonl`
+  had never been created. The Conscious Ledger then retracted its round-1 claim, and reported its hook running after
+  the send on 4 of about 80 messages.
+- **Names promise more than the code measures.** "Tombstone contradiction" is a `known_facts.json` mismatch.
+  `causality_signal` means the top-k output changed. The lexicon screen is word association, as the rename above
+  already says.
+- **Speak text reaches the public memory repo.** "Never text" holds for `holds.jsonl` only. On 2026-10-10 the public
+  memory repo held 84 paths of full speak text and 292 of personal material. Pushes to it are paused (Tien's
+  `pre-push` hook). Removing what is already there is a history rewrite and waits for Lawrence's yes.
+
+**Before this PR merges (the reviewers' consensus; the decision is Lawrence's):**
+
+1. The gate runs before the send, and a log shows every message passing it. Until then the docs say "after".
+2. Construct controls on the screen: matched clean texts, shuffled-word texts and a null lexicon, each through the
+   same pipeline, with the counts reported beside the true catches (none measured so far).
+3. A privacy check runs before every push to a public repo, and only then are the pushes resumed.
+4. Names match what is measured, and versions are pinned.
+5. One outside person reruns the test vectors before anything more is claimed.
