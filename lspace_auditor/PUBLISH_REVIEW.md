@@ -128,6 +128,9 @@ digest, so their agreement is not independent evidence. Only findings backed by 
 - **Speak text reaches the public memory repo.** "Never text" holds for `holds.jsonl` only. On 2026-10-10 the public
   memory repo held 84 paths of full speak text and 292 of personal material. Pushes to it are paused (Tien's
   `pre-push` hook). Removing what is already there is a history rewrite and waits for Lawrence's yes.
+  *Correction, later the same day:* scoping by path is not enough. The `prompt=` field of 146 task records and 99
+  jlens snapshots outside those paths carries speak text, and 266 carry OCR-video prompts. A removal must be scoped
+  by content, or the repo taken out of public view (covenant retraction A326-SCOPE).
 
 **Before this PR merges (the reviewers' consensus; the decision is Lawrence's):**
 

@@ -16,6 +16,10 @@ before a reply is formulated or spoken.
 > - **"Never text" holds for `holds.jsonl` only.** The same hook writes the full speak text to `full_speak.txt`
 >   (or `withheld_speak.txt` on a BLOCK), and `fire_triad.sh` hands it to the LSpace leg, whose output joins the
 >   memory root. On 2026-10-10 the public memory repo held 84 paths of full speak text.
+>   *Correction, later 2026-10-10:* that count undercounts. `on_speak.sh` also puts the whole spoken text into
+>   `PROMPT`, `fire_triad.sh` writes it as `prompt=` into every task record, and the proxy snapshot keeps up to 480
+>   characters of it. 146 task records and 99 jlens snapshots outside the 84 carry speak text that way (covenant
+>   retraction A326-SCOPE).
 > - **`causality_signal`** in `intervene.py` is true when the top-k output changed after the intervention. It
 >   shows the output moved, not why.
 >
