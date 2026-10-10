@@ -1,0 +1,7 @@
+known_facts.json
+state/
+smoke_out/
+SMOKE_REPORT.md
+__pycache__/
+*.pyc
+*.log
