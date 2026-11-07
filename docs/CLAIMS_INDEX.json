@@ -1,0 +1,33 @@
+{
+ "what": "Each figure this repository states, the exact sentence where it stands, how it is reproduced, and whether it can be reproduced from this repository. Checked fail-closed by research_grade.py.",
+ "as_of": "2026-11-07",
+ "claims": [
+  {
+   "id": "TF-K1",
+   "claim": "The L-lens and triad verification tests pass, 26 of 26, without a model.",
+   "source": "README.md",
+   "exact": "`tests/test_llens.py`: 26 passed.",
+   "reproduce": "python -m pytest -q tests/test_llens.py",
+   "reproduction_status": "custodian-run",
+   "limits": "Synthetic captures with known answers, each link broken on purpose; the tests need numpy and pytest, not torch or a lens. They show the verifier refuses named tampers. They do not measure any model."
+  },
+  {
+   "id": "TF-K2",
+   "claim": "A stored L-lens capture equals a direct upstream Jacobian Lens call on the seed prompt, 70 of 70 comparisons.",
+   "source": "README.md",
+   "exact": "`check_against_upstream.py` on the seed prompt: 70 of 70 comparisons equal.",
+   "reproduce": "python tests/check_against_upstream.py runs/ID",
+   "reproduction_status": "custodian-run",
+   "limits": "Needs gpt2-small, torch and the jlens package, which CI does not install; one prompt, one machine (2026-10-08, Windows 11, CPU, the versions named in the README)."
+  },
+  {
+   "id": "TF-K3",
+   "claim": "An end-to-end speak-turn verified with 44 checks, and three deliberate breaks each failed with the named reason.",
+   "source": "README.md",
+   "exact": "`e2e_triad.sh`: a speak-turn verified with 44 checks.",
+   "reproduce": "COVENANT_SRC=... bash tests/e2e_triad.sh",
+   "reproduction_status": "custodian-run",
+   "limits": "Needs the model, the lens and a covenant checkout; run in a scratch directory on one machine, not in CI."
+  }
+ ]
+}
