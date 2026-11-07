@@ -138,6 +138,14 @@ transformers 5.19.0, jlens 0.1.0 at 581d398):
 - `e2e_triad.sh`: a speak-turn verified with 44 checks. A wrong tombstone digest and a missing L-lens memory
   each failed with that named reason, and restoring each restored green. A broken lens file failed the triad
   before anything was appended.
+
+## Auditability baseline
+
+`python -I research_grade.py` (standard library only) drives its own checks red and green on a synthetic case, then
+checks this repository: the three results above are indexed in `docs/CLAIMS_INDEX.json` with their exact sentences
+and commands (all `custodian-run`; only `tests/test_llens.py` runs in CI, because the other two need the model and the
+lens), `docs/RETRACTED.json` is empty (nothing withdrawn), and `MANIFEST.sha256` pins every tracked file. Passing
+means the results are auditable, not that they are true.
 - `scripts/seed_demo.sh`: `MODE=apply` and `MODE=triad` both OK (scratch tombstone and memory root).
 - A 480-character speak-turn (106 positions): 12 s total, raw arrays 135 KB, memory bodies 10 KB (capture) and
   9 KB (L-lens).

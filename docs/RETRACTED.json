@@ -1,0 +1,7 @@
+{
+ "what": "Claims this repository published and then withdrew. Read by research_grade.py: a withdrawn wording may appear anywhere only if its id is cited within `window` lines. Empty on 2026-11-07: the README was rewritten on 2026-10-07 (2406473) when the L-lens layer was introduced, which replaced the description rather than withdrawing a claim shown false; no correction is recorded in the history.",
+ "window": 10,
+ "coverage_floor": 10,
+ "expect_dirs": ["docs", "tests", "triad"],
+ "retractions": []
+}
