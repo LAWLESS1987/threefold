@@ -1,3 +1,13 @@
+---
+license: apache-2.0
+pretty_name: Threefold (L-lens)
+tags:
+  - ai-observability
+  - interpretability
+  - provenance
+  - mechanistic-interpretability
+---
+
 # threefold
 
 **Tombstone ∥ Covenant ∥ L-lens**: an experimental AI observability and provenance apparatus.
@@ -128,6 +138,14 @@ transformers 5.19.0, jlens 0.1.0 at 581d398):
 - `e2e_triad.sh`: a speak-turn verified with 44 checks. A wrong tombstone digest and a missing L-lens memory
   each failed with that named reason, and restoring each restored green. A broken lens file failed the triad
   before anything was appended.
+
+## Auditability baseline
+
+`python -I research_grade.py` (standard library only) drives its own checks red and green on a synthetic case, then
+checks this repository: the three results above are indexed in `docs/CLAIMS_INDEX.json` with their exact sentences
+and commands (all `custodian-run`; only `tests/test_llens.py` runs in CI, because the other two need the model and the
+lens), `docs/RETRACTED.json` is empty (nothing withdrawn), and `MANIFEST.sha256` pins every tracked file. Passing
+means the results are auditable, not that they are true.
 - `scripts/seed_demo.sh`: `MODE=apply` and `MODE=triad` both OK (scratch tombstone and memory root).
 - A 480-character speak-turn (106 positions): 12 s total, raw arrays 135 KB, memory bodies 10 KB (capture) and
   9 KB (L-lens).
@@ -253,3 +271,18 @@ Live data: https://github.com/LAWLESS1987/threefold-memory
 git clone https://github.com/LAWLESS1987/threefold-memory
 export AI_MEMORY_ROOT=$PWD/threefold-memory
 ```
+
+
+---
+
+## Part of one system — each piece usable on its own
+
+These repositories are independent instruments that also compose into a single apparatus for **building and honestly auditing trustworthy multi-intelligence systems**. Any one can be used standalone; together they form the stack:
+
+- **Governed core** — [covenant](https://huggingface.co/Lawless1987/covenant): a self-governing multi-agent system with an ethics gate inside the transaction path.
+- **Observability & provenance** — [threefold](https://huggingface.co/Lawless1987/threefold) (the L-lens layer over Jacobian Lens) and [threefold-memory](https://huggingface.co/Lawless1987/threefold-memory) (its persistent, provenance-tracked memory): every action measured and recorded under one task identity.
+- **Measurement instruments** — [contradiction-probe](https://huggingface.co/Lawless1987/contradiction-probe) and [flinch-observability](https://huggingface.co/Lawless1987/flinch-observability), with the session records [flinch-record](https://huggingface.co/Lawless1987/flinch-record) and [grokflinch](https://huggingface.co/Lawless1987/grokflinch): preregistered, blind-scored tests of AI behaviour that embody the covenant's rule — *investigate a signal, never convict on one*.
+- **Neuromorphic research** — [spiking-experiments](https://huggingface.co/Lawless1987/spiking-experiments): from-scratch spiking-network experiments with the pass/fail bar declared before each run.
+- **Ledger surface** — [Sentinel-Witness](https://huggingface.co/Lawless1987/Sentinel-Witness): the trading / ledger dashboard.
+
+**This repository's place in it:** the observability + provenance layer that measures and records what the system does.
