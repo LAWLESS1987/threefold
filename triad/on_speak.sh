@@ -3,7 +3,8 @@
 #
 # Lawrence rule: every time Grok Bot speaks (SendToUser), it counts as a task.
 # This hook assigns a task_id and runs fire_triad.sh (tombstone ∥ covenant ∥ L-lens over Anthropic's Jacobian Lens).
-# No degrade mode: any leg failure exits nonzero.
+# No degrade mode: any leg failure exits nonzero, and a triad that fails after
+# its tombstone entry was written is recorded as failed (see below).
 #
 # Usage:
 #   ./on_speak.sh "exact words spoken to the user" [optional-title]
@@ -41,12 +42,36 @@ PROMPT="Grok Bot speaking to Lawrence: ${TRUNC}"
 
 TASK="Assistant speak-turn: deliver user-visible message"
 DONE="Spoke to user via SendToUser; triad logged under shared task_id"
-OUTCOME="success"
 NOTES="hook=on_speak.sh; speak_chars=${#SPOKEN_TEXT}"
+
+# The recorded outcome comes from what happened: the exit status of the triad
+# this hook runs. fire_triad.sh writes its tombstone entry part-way through
+# (after the lens leg, before the covenant writes, the verification and the
+# publish step), so that entry can only say what the outcome is IF the triad
+# completes. When the triad exits nonzero after that entry was written, this
+# hook appends a second entry for the same task with outcome "failed" and the
+# exit status. The log is append-only, so the earlier entry is corrected, not
+# rewritten. A triad that fails before its entry is written (the lens leg)
+# still appends nothing.
+OUTCOME="success"   # what fire_triad.sh's entry says; true only if the triad completes
+REPO_ROOT="$(cd "$DIR/.." && pwd)"
+TOMBSTONE_APPEND="${TOMBSTONE_APPEND:-$REPO_ROOT/tombstone/append.sh}"
+export TOMBSTONE_LOG="${TOMBSTONE_LOG:-$REPO_ROOT/tombstone/tombstone.md}"
+export TASK_ID="${TASK_ID:-$(date -u +%Y%m%d-%H%M%S)-$$}"
+entries_for_task() { grep -c -F "task_id=${TASK_ID};" "$TOMBSTONE_LOG" 2>/dev/null || true; }
+ENTRIES_BEFORE="$(entries_for_task)"
 
 export TITLE TASK DONE OUTCOME PROMPT
 export MISTAKES="${MISTAKES:-none}"
 export LESSONS="${LESSONS:-Every speak-turn fires triad; no degrade mode}"
 export NOTES
 
-exec "$FIRE" "$TITLE" "$TASK" "$DONE" "$OUTCOME" "$PROMPT" "$MISTAKES" "$LESSONS" "$NOTES"
+RC=0
+"$FIRE" "$TITLE" "$TASK" "$DONE" "$OUTCOME" "$PROMPT" "$MISTAKES" "$LESSONS" "$NOTES" || RC=$?
+if [[ "$RC" -ne 0 && "$(entries_for_task)" != "$ENTRIES_BEFORE" ]]; then
+  "$TOMBSTONE_APPEND" "$TITLE" "$TASK" \
+    "fire_triad.sh exited ${RC} after its tombstone entry was written; the triad did not complete" \
+    "failed" "$MISTAKES" "$LESSONS" \
+    "hook=on_speak.sh; triad_failed_for=${TASK_ID}; fire_triad_exit=${RC}; corrects the earlier entry for this task, which said ${OUTCOME}"
+fi
+exit "$RC"
