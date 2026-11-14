@@ -17,5 +17,13 @@ jobs:
         run: python -m pip install numpy pytest
       - name: L-lens and triad verification, each link broken on purpose
         run: python -m pytest -q tests/test_llens.py
+      - name: covenant's memory store at a pinned commit (the triad writers call it)
+        run: |
+          git init -q vendor/covenant
+          git -C vendor/covenant fetch -q --depth 1 https://github.com/LAWLESS1987/covenant.git 6222d438b6208a4f7c125e3b02626363974b8582
+          git -C vendor/covenant checkout -q FETCH_HEAD
+          test "$(git -C vendor/covenant rev-parse HEAD)" = 6222d438b6208a4f7c125e3b02626363974b8582
+      - name: triad writers, publish order and push script, without a model (git is a recorder, nothing is pushed)
+        run: python -m pytest -q tests/test_triad_writers.py
       - name: auditability checks (self-test, retractions, claims index, manifest)
         run: python -I research_grade.py

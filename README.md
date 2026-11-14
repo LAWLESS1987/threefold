@@ -121,10 +121,18 @@ across different CPUs or BLAS builds is not guaranteed. Covenant's own hash chai
 (`verify_chain`), not here. Verification runs after the legs are written. A failure marks the triad failed, and
 it does not unwrite append-only records.
 
+**Publication comes after verification.** Writing a memory never pushes. When `AI_MEMORY_ROOT` is a git checkout,
+`fire_triad.sh` commits and pushes it (`put_covenant_memory.sh --publish`) only after `verify_triad.py` has passed,
+and a `GH_TOKEN` reaches git through the environment, never in a remote address or a command line. The commit
+takes everything in the memory root, so records a failed triad left there are published by the next triad that
+verifies. `on_speak.sh` appends a `failed` tombstone entry when the triad fails after its own entry was written.
+
 ## Tests
 
 ```bash
 python -m pytest tests/test_llens.py            # no model needed: derivation, hashing, every link broken on purpose
+python -m pytest tests/test_triad_writers.py    # no model needed: the writers against a covenant checkout (vendor/covenant
+                                                # or COVENANT_SRC), publish only after verification, the token in no argument
 python tests/check_against_upstream.py runs/ID  # model + lens: the stored capture vs a direct upstream apply call
 COVENANT_SRC=… tests/e2e_triad.sh               # model + lens + covenant: a real speak-turn in a scratch dir, then broken 3 ways
 ```
@@ -182,7 +190,7 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1
 pip install -r requirements.txt
-pip install "jlens @ git+https://github.com/anthropics/jacobian-lens"
+pip install "jlens @ git+https://github.com/anthropics/jacobian-lens@581d398"   # the commit the results above were measured at
 
 # Covenant (memory CLI) — do not vendor the whole tree into git history
 git clone https://github.com/LAWLESS1987/covenant vendor/covenant
@@ -228,9 +236,9 @@ threefold/
     append.sh
     tombstone.md           # SAMPLE only
   triad/
-    fire_triad.sh          # the three legs, then verify_triad.py
+    fire_triad.sh          # the three legs, then verify_triad.py, then publish
     on_speak.sh
-    put_covenant_memory.sh
+    put_covenant_memory.sh # writes; --publish commits and pushes the memory root
     put_memory_file.py     # covenant MemoryStore.put with the body read from a file
     verify_triad.py        # cross-leg verification, fails closed
   scripts/
@@ -238,6 +246,7 @@ threefold/
     seed_demo.sh
   tests/
     test_llens.py
+    test_triad_writers.py
     check_against_upstream.py
     e2e_triad.sh
 ```

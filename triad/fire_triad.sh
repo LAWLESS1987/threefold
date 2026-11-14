@@ -15,6 +15,8 @@
 #       builds the L-lens artifact from that capture and checks it
 # After all three: triad/verify_triad.py checks the legs agree (task_id and
 # digests); a disagreement or an absent artifact fails the triad.
+# Only then is the memory root published (put_covenant_memory.sh --publish:
+# commit and push when AI_MEMORY_ROOT is a git checkout, skipped otherwise).
 #
 # Defaults resolve relative to REPO_ROOT (parent of triad/).
 set -euo pipefail
@@ -159,4 +161,8 @@ echo "=== triad verification (task_id and digests agree across all three legs) =
   echo "PROOF FAIL: the three legs do not agree (see FAIL lines above)" >&2
   exit 1
 }
+# Publication is the last step and runs only when the verification above passed.
+# Leg (b) only wrote the memories; a triad that does not verify is not pushed.
+echo "--- publish: memory root (only after verification) ---"
+"$PUT_COVENANT" --publish "$TASK_ID"
 echo "FIRE_TRIAD_OK task_id=$TASK_ID (tombstone + covenant + L-lens over real jlens.apply; verified)"
