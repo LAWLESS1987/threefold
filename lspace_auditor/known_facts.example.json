@@ -1,0 +1,13 @@
+{
+  "_comment": "GENERIC EXAMPLE. Copy to known_facts.json (gitignored) or point LSPACE_KNOWN_FACTS at your own file. Real facts are operator ground truth and stay private.",
+  "corrections_line": "KNOWN CORRECTIONS: the example nightly ran 11 builds (not 12).",
+  "facts": [
+    {
+      "id": "example_build_count",
+      "pattern": "\\b11 builds\\b|build count",
+      "contradict_speak": ["\\b12 builds\\b"],
+      "affirm": "\\b11 builds\\b",
+      "summary": "example: the nightly ran 11 builds (not 12)"
+    }
+  ]
+}
